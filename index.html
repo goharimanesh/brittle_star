@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ستارهٔ شکنندهٔ ARCSLAB</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;600;800&display=swap">
+<style>
+/* Layout: camera feed fills the screen as the seafloor; the animal moves on top; one instrument panel at the reading edge. */
+:root{
+  --abyss:#05171e;
+  --tide:#0c3540;
+  --foam:#e6f0ec;
+  --kelp:#8db3ab;
+  --coral:#ff9a5c;
+  --line:rgba(230,240,236,.14);
+  --panel:rgba(5,23,30,.72);
+  --f-body:"Vazirmatn",Tahoma,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--abyss);color:var(--foam);font-family:var(--f-body);font-size:14px}
+#video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);opacity:0;transition:opacity .6s}
+#video.on{opacity:1}
+#tint{position:fixed;inset:0;pointer-events:none;
+  background:radial-gradient(120% 90% at 50% 45%,rgba(12,53,64,.25),rgba(5,23,30,.78)),linear-gradient(rgba(10,45,52,.35),rgba(10,45,52,.35))}
+#stage{position:fixed;inset:0;width:100%;height:100%;display:block}
+
+.panel{position:fixed;top:max(16px,env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px));
+  width:300px;max-width:calc(100% - 32px);background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:16px;display:flex;flex-direction:column;gap:12px}
+.panel h1{margin:0;font-size:20px;font-weight:800;letter-spacing:-.2px;text-wrap:balance}
+.panel .sub{margin:2px 0 0;color:var(--kelp);font-size:12px;line-height:1.7}
+.status{font-size:12.5px;line-height:1.7;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid var(--line)}
+.status b{color:var(--coral);font-weight:600}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+button{font:inherit;font-size:13px;font-weight:600;border-radius:8px;padding:8px 12px;cursor:pointer;
+  border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--foam)}
+button.primary{background:var(--coral);color:#2a1206;border-color:transparent}
+button:hover{filter:brightness(1.12)}
+button:focus-visible{outline:2px solid var(--coral);outline-offset:2px}
+button[disabled]{opacity:.55;cursor:wait}
+.arms{display:flex;flex-direction:column;gap:7px}
+.arm{display:grid;grid-template-columns:10px 1fr 82px 40px;align-items:center;gap:8px;font-size:12.5px}
+.dot{width:10px;height:10px;border-radius:50%}
+.bar{height:6px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden;direction:ltr}
+.bar i{display:block;height:100%;width:0;border-radius:3px}
+.state{font-size:11px;color:var(--kelp);text-align:left}
+.state.on{color:var(--coral)}
+.meta{display:flex;justify-content:space-between;font-size:12px;color:var(--kelp);font-variant-numeric:tabular-nums}
+.hint{font-size:11.5px;color:var(--kelp);line-height:1.8;margin:0}
+label.tog{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--kelp);cursor:pointer}
+
+.dedic{position:fixed;left:max(16px,env(safe-area-inset-left,0px));bottom:max(16px,env(safe-area-inset-bottom,0px));
+  max-width:min(420px,calc(100% - 32px));padding:14px 16px;border-radius:12px;background:var(--panel);
+  border:1px solid var(--line);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);line-height:1.85}
+.dedic .k{font-size:11px;letter-spacing:.4px;color:var(--coral);font-weight:600}
+.dedic .n{font-size:17px;font-weight:800;margin:2px 0 4px}
+.dedic p{margin:0;font-size:12.5px;color:var(--foam);opacity:.88}
+.dedic .lab{direction:ltr;unicode-bidi:isolate;font-weight:800;letter-spacing:1px;color:var(--coral)}
+.collapse{display:none}
+
+@media (max-width:640px){
+  .panel{top:auto;bottom:max(16px,env(safe-area-inset-bottom,0px));right:16px;left:16px;width:auto;max-width:none;padding:12px;gap:9px}
+  .panel .sub,.hint{display:none}
+  .dedic{top:max(12px,env(safe-area-inset-top,0px));bottom:auto;padding:10px 12px}
+  .dedic p{font-size:11.5px}
+  .dedic .n{font-size:15px}
+}
+@media (prefers-reduced-motion:reduce){#video{transition:none}}
+</style>
+</head>
+<body>
+<video id="video" playsinline muted></video>
+<div id="tint"></div>
+<canvas id="stage"></canvas>
+
+<aside class="panel" aria-label="کنترل">
+  <div>
+    <h1>ستارهٔ شکننده</h1>
+    <p class="sub">Ophiuroidea · پنج بازو، کنترل با انگشتان هر دو دست</p>
+  </div>
+  <div class="status" id="status">حالت نمایشی: ستاره با گام پاروزنی خودکار حرکت می‌کند. برای کنترل با دست، دوربین را روشن کنید.</div>
+  <div class="btns">
+    <button class="primary" id="camBtn">روشن کردن دوربین</button>
+    <button id="resetBtn">بازگرداندن به مرکز</button>
+    <button id="swapBtn" title="اگر دست چپ و راست برعکس تشخیص داده شد">جابه‌جایی دست‌ها</button>
+  </div>
+  <div class="arms" id="arms"></div>
+  <div class="meta"><span id="speed">سرعت: ۰</span><span id="fps"></span></div>
+  <label class="tog"><input type="checkbox" id="labelsTog" checked> نام انگشت کنار هر بازو</label>
+  <p class="hint">انگشت‌ها را آرام و پشت سر هم خم و باز کنید. خم کردن انگشت یعنی بازو روی بستر پارو می‌زند و بدن را جلو می‌برد؛ باز کردن انگشت یعنی بازو کمی بالا می‌آید و به عقب برمی‌گردد. شست راست بازوی جلویی را هدایت می‌کند. اشارهٔ دو دست را هم‌زمان حرکت دهید تا ستاره مستقیم برود.</p>
+</aside>
+
+<section class="dedic" aria-label="تقدیم">
+  <div class="k">تقدیم به</div>
+  <div class="n">سرکار خانم دکتر مونا گوهری‌منش</div>
+  <p>که با تهیهٔ حساب حرفه‌ای Claude برای آزمایشگاه <span class="lab">ARCSLAB</span>، راه را برای پژوهشگران رباتیک هموار کرد تا در این حوزه کارهای ارزشمندی انجام دهند.</p>
+</section>
+
+<script>
+/* ===================== configuration ===================== */
+const D = Math.PI/180;
+const ARMS = [
+  {id:'RT', hand:'R', finger:'thumb',  base:   0*D, name:'شست راست',   color:'#ffd27a'},
+  {id:'RI', hand:'R', finger:'index',  base:  72*D, name:'اشارهٔ راست', color:'#ff8a5c'},
+  {id:'RM', hand:'R', finger:'middle', base: 144*D, name:'میانیِ راست', color:'#ff5f7e'},
+  {id:'LT', hand:'L', finger:'thumb',  base:-144*D, name:'شست چپ',     color:'#6fd3ff'},
+  {id:'LI', hand:'L', finger:'index',  base: -72*D, name:'اشارهٔ چپ',  color:'#7cf0b4'},
+];
+const N = 24;                 // arm segments (vertebral ossicles drawn)
+const fa = n => n.toLocaleString('fa-IR');
+
+/* ===================== PHYSICS-BEGIN ===================== */
+// Resistive-force model on a substrate: each arm segment resists motion with
+// anisotropic friction (normal >> tangential). Brittle stars are friction-dominated,
+// so the body velocity is whatever makes total force and torque zero.
+const CT = 0.6, CN = 2.6;        // tangential / normal friction per unit length
+const LIFT_MU = 0.14;            // arm partly lifted on the recovery stroke
+
+function makeStar(scale){
+  const s = {x:0,y:0,h:-Math.PI/2,vx:0,vy:0,w:0,scale:0,R:0,arms:[]};
+  ARMS.forEach((a,k)=>s.arms.push({...a,k,c:.5,cPrev:.5,rate:0,contact:1,stance:1,
+    mx:new Float32Array(N),my:new Float32Array(N),px:new Float32Array(N),py:new Float32Array(N),
+    tx:new Float32Array(N),ty:new Float32Array(N),ph:new Float32Array(N),len:new Float32Array(N),wd:new Float32Array(N),fresh:true}));
+  setScale(s,scale);
+  return s;
+}
+function setScale(s,scale){
+  s.scale=scale; s.R=26*scale; s.L0=7.4*scale; s.W0=9.5*scale;
+  s.arms.forEach(a=>a.fresh=true);
+}
+function segLen(s,i){return s.L0*(1-0.36*i/(N-1))}
+function segW(s,i){return s.W0*(1-0.74*i/(N-1))}
+
+function computeArm(s,a,t){
+  const front = a.base===0, sign = front?1:Math.sign(a.base), c=a.c;
+  const sweep = front ? (c-.5)*0.5 : sign*(c-.5)*1.05;
+  const curv  = front ? (c-.5)*2.4 : sign*(c-.5)*0.95;
+  let phi = a.base+sweep;
+  let x = Math.cos(phi)*s.R*0.72, y = Math.sin(phi)*s.R*0.72;
+  for(let i=0;i<N;i++){
+    const u=i/(N-1);
+    const wave = 0.042*Math.sin(1.7*t + a.k*1.37 - i*0.42)*(0.25+u);
+    phi += curv/N*(0.6+0.8*u) + wave;
+    const L=segLen(s,i), cx=Math.cos(phi), cy=Math.sin(phi);
+    const nx=x+cx*L, ny=y+cy*L;
+    a.mx[i]=(x+nx)/2; a.my[i]=(y+ny)/2; a.tx[i]=cx; a.ty[i]=cy; a.ph[i]=phi; a.len[i]=L; a.wd[i]=segW(s,i);
+    x=nx; y=ny;
+  }
+}
+
+function stepStar(s,t,dt){
+  const ch=Math.cos(s.h), sh=Math.sin(s.h);
+  const M=[[0,0,0],[0,0,0],[0,0,0]], b=[0,0,0];
+  for(const a of s.arms){
+    a.px.set(a.mx); a.py.set(a.my);
+    computeArm(s,a,t);
+    if(a.fresh){a.px.set(a.mx);a.py.set(a.my);a.fresh=false;}
+    // power stroke (finger curling) = arm pressed on substrate; recovery = lifted
+    if(a.rate>0.08) a.stance=1; else if(a.rate<-0.08) a.stance=0;
+    a.contact += (a.stance-a.contact)*(1-Math.exp(-dt*12));
+    const mu = LIFT_MU+(1-LIFT_MU)*a.contact;
+    for(let i=0;i<N;i++){
+      const bx=a.mx[i], by=a.my[i];
+      const rx=ch*bx-sh*by, ry=sh*bx+ch*by;
+      const tx=ch*a.tx[i]-sh*a.ty[i], ty=sh*a.tx[i]+ch*a.ty[i];
+      const dbx=(bx-a.px[i])/dt, dby=(by-a.py[i])/dt;
+      const ux=ch*dbx-sh*dby, uy=sh*dbx+ch*dby;
+      const mt=CT*a.len[i]*mu, mn=CN*a.len[i]*mu, nx=-ty, ny=tx;
+      const a11=mt*tx*tx+mn*nx*nx, a12=mt*tx*ty+mn*nx*ny, a22=mt*ty*ty+mn*ny*ny;
+      const qx=-ry, qy=rx;
+      const Aqx=a11*qx+a12*qy, Aqy=a12*qx+a22*qy;
+      const Aux=a11*ux+a12*uy, Auy=a12*ux+a22*uy;
+      M[0][0]+=a11; M[0][1]+=a12; M[0][2]+=Aqx;
+      M[1][0]+=a12; M[1][1]+=a22; M[1][2]+=Aqy;
+      M[2][0]+=Aqx; M[2][1]+=Aqy; M[2][2]+=qx*Aqx+qy*Aqy;
+      b[0]-=Aux; b[1]-=Auy; b[2]-=qx*Aux+qy*Auy;
+    }
+  }
+  // central disk rests on the substrate too
+  const md=1.6*s.R; M[0][0]+=md; M[1][1]+=md; M[2][2]+=0.8*md*s.R*s.R;
+  const v=solve3(M,b);
+  s.vx=v[0]; s.vy=v[1]; s.w=v[2];
+  s.x+=v[0]*dt; s.y+=v[1]*dt; s.h+=v[2]*dt;
+}
+function solve3(m,b){
+  const det=(a)=>a[0][0]*(a[1][1]*a[2][2]-a[1][2]*a[2][1])-a[0][1]*(a[1][0]*a[2][2]-a[1][2]*a[2][0])+a[0][2]*(a[1][0]*a[2][1]-a[1][1]*a[2][0]);
+  const d=det(m); if(Math.abs(d)<1e-9) return [0,0,0];
+  const out=[];
+  for(let c=0;c<3;c++){const mm=m.map((r,i)=>r.map((v,j)=>j===c?b[i]:v)); out.push(det(mm)/d);}
+  return out;
+}
+function demoCurls(t){
+  const w=2*Math.PI*0.8;
+  return {RI:.5+.45*Math.sin(w*t), LI:.5+.45*Math.sin(w*t),
+          RM:.5+.45*Math.sin(w*t-1.25), LT:.5+.45*Math.sin(w*t-1.25),
+          RT:.5+.3*Math.sin(0.21*t)};
+}
+/* ===================== PHYSICS-END ===================== */
+
+/* ===================== hand tracking ===================== */
+const TASKS='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const MODEL='https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+const video=document.getElementById('video');
+let landmarker=null, camOn=false, swap=false, lastVT=-1, lastHands=[], lastSeen=-1e9;
+const clamp01=v=>v<0?0:v>1?1:v;
+
+function bend(L,a,b,c,W,H){
+  const ux=(L[b].x-L[a].x)*W, uy=(L[b].y-L[a].y)*H, uz=(L[b].z-L[a].z)*W;
+  const vx=(L[c].x-L[b].x)*W, vy=(L[c].y-L[b].y)*H, vz=(L[c].z-L[b].z)*W;
+  const d=(ux*vx+uy*vy+uz*vz)/(Math.hypot(ux,uy,uz)*Math.hypot(vx,vy,vz)+1e-6);
+  return Math.acos(Math.max(-1,Math.min(1,d)));
+}
+const dist2=(L,a,b,W,H)=>Math.hypot((L[a].x-L[b].x)*W,(L[a].y-L[b].y)*H);
+function fingerCurl(L,f,W,H){
+  if(f==='index')  return clamp01((bend(L,0,5,6,W,H)+bend(L,5,6,7,W,H)+bend(L,6,7,8,W,H)-0.35)/2.6);
+  if(f==='middle') return clamp01((bend(L,0,9,10,W,H)+bend(L,9,10,11,W,H)+bend(L,10,11,12,W,H)-0.35)/2.6);
+  const ang=clamp01((bend(L,1,2,3,W,H)+bend(L,2,3,4,W,H)-0.25)/1.2);
+  const d=dist2(L,4,17,W,H)/(dist2(L,5,17,W,H)+1e-6);
+  return 0.4*ang+0.6*clamp01((1.75-d)/1.05);
+}
+
+const statusEl=document.getElementById('status'), camBtn=document.getElementById('camBtn');
+function setStatus(html){statusEl.innerHTML=html}
+
+async function startCamera(){
+  if(camOn) return stopCamera();
+  camBtn.disabled=true;
+  try{
+    if(!window.isSecureContext){
+      setStatus('مرورگر این صفحه را «ناامن» می‌داند و دوربین را باز نمی‌کند. فایل را از طریق <b>localhost</b> باز کنید، مثلاً با دستور <b>python -m http.server</b> در همان پوشه.');
+      camBtn.disabled=false; return;
+    }
+    if(!landmarker){
+      setStatus('در حال بارگذاری مدیاپایپ و مدل تشخیص دست…');
+      const vision=await import(TASKS+'/vision_bundle.mjs');
+      const files=await vision.FilesetResolver.forVisionTasks(TASKS+'/wasm');
+      const opts=d=>({baseOptions:{modelAssetPath:MODEL,delegate:d},runningMode:'VIDEO',numHands:2,
+        minHandDetectionConfidence:.5,minHandPresenceConfidence:.5,minTrackingConfidence:.5});
+      try{landmarker=await vision.HandLandmarker.createFromOptions(files,opts('GPU'));}
+      catch(e){landmarker=await vision.HandLandmarker.createFromOptions(files,opts('CPU'));}
+    }
+    setStatus('در حال باز کردن دوربین…');
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}},audio:false});
+    video.srcObject=stream; await video.play();
+    video.classList.add('on'); camOn=true; camBtn.textContent='خاموش کردن دوربین';
+    setStatus('دوربین روشن است. هر دو دست را با کف رو به دوربین جلوی آن بگیرید.');
+  }catch(e){
+    const msg = e && e.name==='NotAllowedError' ? 'اجازهٔ دوربین داده نشد. از نماد قفل کنار نوار آدرس دسترسی دوربین را مجاز کنید و دوباره دکمه را بزنید.'
+      : e && e.name==='NotFoundError' ? 'دوربینی پیدا نشد. یک وب‌کم وصل کنید و دوباره امتحان کنید.'
+      : 'بارگذاری ناموفق بود ('+(e&&e.message?e.message:e)+'). اتصال اینترنت را بررسی کنید؛ کتابخانه و مدل از اینترنت دریافت می‌شوند.';
+    setStatus(msg);
+  }
+  camBtn.disabled=false;
+}
+function stopCamera(){
+  const st=video.srcObject; if(st) st.getTracks().forEach(t=>t.stop());
+  video.srcObject=null; video.classList.remove('on'); camOn=false; lastHands=[];
+  camBtn.textContent='روشن کردن دوربین';
+  setStatus('دوربین خاموش شد. حالت نمایشی فعال است.');
+}
+camBtn.addEventListener('click',startCamera);
+document.getElementById('swapBtn').addEventListener('click',()=>{swap=!swap});
+
+function detectHands(now){
+  if(!camOn||!landmarker||video.readyState<2||video.currentTime===lastVT) return;
+  lastVT=video.currentTime;
+  const res=landmarker.detectForVideo(video,now);
+  const hd=res.handedness||res.handednesses||[];
+  const W=video.videoWidth,H=video.videoHeight;
+  lastHands=[];
+  (res.landmarks||[]).forEach((L,i)=>{
+    // MediaPipe labels assume a mirrored image; the raw webcam frame is not mirrored.
+    const raw=(hd[i]&&hd[i][0]&&hd[i][0].categoryName)||'Left';
+    let hand = raw==='Left'?'R':'L'; if(swap) hand = hand==='R'?'L':'R';
+    lastHands.push({hand,L,curl:{thumb:fingerCurl(L,'thumb',W,H),index:fingerCurl(L,'index',W,H),middle:fingerCurl(L,'middle',W,H)}});
+  });
+  if(lastHands.length) lastSeen=now;
+}
+
+/* ===================== rendering ===================== */
+const cv=document.getElementById('stage'), ctx=cv.getContext('2d');
+let W=0,H=0,DPR=1, star=null, diskTex=null, trail=[], trailT=0, showLabels=true;
+document.getElementById('labelsTog').addEventListener('change',e=>showLabels=e.target.checked);
+
+function resize(){
+  DPR=Math.min(2,window.devicePixelRatio||1); W=innerWidth; H=innerHeight;
+  cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0);
+  const sc=Math.max(.55,Math.min(1.45,Math.min(W,H)/740));
+  if(!star){star=makeStar(sc); star.x=W*(W>640?.45:.5); star.y=H*.55;}
+  else setScale(star,sc);
+  buildDisk();
+}
+addEventListener('resize',resize);
+document.getElementById('resetBtn').addEventListener('click',()=>{star.x=W*(W>640?.45:.5);star.y=H*.55;star.h=-Math.PI/2;trail=[];});
+
+// seeded random so the disk texture is the same every time
+function rng(seed){return()=>{seed=(seed*16807)%2147483647;return(seed-1)/2147483646}}
+function diskPath(c,R,cx,cy){
+  c.beginPath();
+  for(let i=0;i<=120;i++){const th=i/120*2*Math.PI, r=R*(0.9+0.1*Math.cos(5*th));
+    const x=cx+Math.cos(th)*r, y=cy+Math.sin(th)*r; i?c.lineTo(x,y):c.moveTo(x,y);}
+  c.closePath();
+}
+function buildDisk(){
+  const R=star.R, S=Math.ceil(R*2.4), off=document.createElement('canvas');
+  off.width=S*DPR; off.height=S*DPR; const c=off.getContext('2d'); c.scale(DPR,DPR);
+  const cx=S/2, cy=S/2, rnd=rng(7);
+  diskPath(c,R,cx,cy);
+  const g=c.createRadialGradient(cx-R*.2,cy-R*.25,R*.1,cx,cy,R*1.05);
+  g.addColorStop(0,'#d4874f'); g.addColorStop(.7,'#b2603a'); g.addColorStop(1,'#7c3b23');
+  c.fillStyle=g; c.fill();
+  c.save(); diskPath(c,R,cx,cy); c.clip();
+  // dark radial star pattern running toward each arm
+  for(const a of ARMS){
+    c.save(); c.translate(cx,cy); c.rotate(a.base);
+    c.beginPath(); c.moveTo(0,-R*.09); c.quadraticCurveTo(R*.6,-R*.16,R*1.05,-R*.05);
+    c.lineTo(R*1.05,R*.05); c.quadraticCurveTo(R*.6,R*.16,0,R*.09); c.closePath();
+    c.fillStyle='rgba(70,26,14,.55)'; c.fill(); c.restore();
+  }
+  // granules and small scales covering the aboral disk
+  for(let i=0;i<900;i++){
+    const th=rnd()*Math.PI*2, r=Math.sqrt(rnd())*R, x=cx+Math.cos(th)*r, y=cy+Math.sin(th)*r;
+    const lum=rnd(); c.fillStyle = lum>.55?`rgba(250,214,170,${.18+.25*rnd()})`:`rgba(60,22,10,${.15+.25*rnd()})`;
+    c.beginPath(); c.arc(x,y,(.35+rnd()*.7)*R/26,0,Math.PI*2); c.fill();
+  }
+  c.restore();
+  // paired radial shields at the base of every arm
+  for(const a of ARMS){
+    for(const sgn of [-1,1]){
+      c.save(); c.translate(cx,cy); c.rotate(a.base+sgn*0.2); c.translate(R*.7,0);
+      c.beginPath(); c.ellipse(0,0,R*.2,R*.085,sgn*0.12,0,Math.PI*2);
+      const sg=c.createLinearGradient(-R*.2,0,R*.2,0); sg.addColorStop(0,'#c98c5c'); sg.addColorStop(1,'#f0d4a8');
+      c.fillStyle=sg; c.fill(); c.lineWidth=R/40; c.strokeStyle='rgba(80,30,15,.7)'; c.stroke(); c.restore();
+    }
+  }
+  // central primary plate rosette
+  c.save(); c.translate(cx,cy);
+  for(let k=0;k<5;k++){c.rotate(2*Math.PI/5); c.beginPath(); c.ellipse(R*.13,0,R*.07,R*.05,0,0,Math.PI*2);
+    c.fillStyle='rgba(240,200,150,.55)'; c.fill();}
+  c.beginPath(); c.arc(0,0,R*.08,0,Math.PI*2); c.fillStyle='#e3b07c'; c.fill();
+  c.restore();
+  diskPath(c,R,cx,cy); c.lineWidth=R/22; c.strokeStyle='rgba(60,22,10,.75)'; c.stroke();
+  diskTex={img:off,S};
+}
+
+const PALETTE={bandA:'#c97b48',bandB:'#6e331f',plateA:'#e2a06a',plateB:'#8a452a',spine:'#f3cfa2',edge:'rgba(48,16,6,.75)'};
+function drawStar(){
+  const s=star, ch=Math.cos(s.h), sh=Math.sin(s.h);
+  const W2=(x,y)=>[s.x+ch*x-sh*y, s.y+sh*x+ch*y];
+  // shadows (lifted arms throw a softer, farther shadow)
+  ctx.save(); ctx.fillStyle='rgba(0,8,12,.32)';
+  for(const a of s.arms){
+    const lift=1-a.contact, ox=3+8*lift, oy=4+10*lift;
+    ctx.beginPath();
+    for(let i=0;i<N;i++){const [x,y]=W2(a.mx[i],a.my[i]); const r=a.wd[i]*(.62+.25*lift);
+      ctx.moveTo(x+ox+r,y+oy); ctx.arc(x+ox,y+oy,r,0,Math.PI*2);}
+    ctx.fill();
+  }
+  ctx.beginPath(); ctx.arc(s.x+4,s.y+5,s.R*1.02,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  for(const a of s.arms){
+    const lift=1-a.contact;
+    for(let i=N-1;i>=0;i--){
+      const [x,y]=W2(a.mx[i],a.my[i]), L=a.len[i], w=a.wd[i]*(1+.06*lift);
+      ctx.save(); ctx.translate(x,y); ctx.rotate(a.ph[i]+s.h);
+      const band = Math.floor(i/4)%2===0;
+      // lateral arm spines: short, pointing outward and toward the arm tip
+      ctx.strokeStyle=PALETTE.spine; ctx.lineCap='round'; ctx.lineWidth=Math.max(.6,w*.09);
+      ctx.beginPath();
+      for(const side of [-1,1]) for(let j=0;j<3;j++){
+        const bx=-L*.35+L*.33*j, by=side*w*.46, sl=w*(.5+.08*j);
+        ctx.moveTo(bx,by); ctx.lineTo(bx+sl*.55,by+side*sl*.83);
+      }
+      ctx.globalAlpha=.85; ctx.stroke(); ctx.globalAlpha=1;
+      // lateral plates (body of the segment)
+      ctx.beginPath(); ctx.ellipse(0,0,L*.6,w*.5,0,0,Math.PI*2);
+      ctx.fillStyle=band?PALETTE.bandA:PALETTE.bandB; ctx.fill();
+      ctx.lineWidth=Math.max(.5,w*.06); ctx.strokeStyle=PALETTE.edge; ctx.stroke();
+      // dorsal arm plate, fan-shaped and wider distally
+      ctx.beginPath(); ctx.moveTo(-L*.46,-w*.24); ctx.lineTo(L*.4,-w*.36);
+      ctx.quadraticCurveTo(L*.6,0,L*.4,w*.36); ctx.lineTo(-L*.46,w*.24); ctx.closePath();
+      ctx.fillStyle=band?PALETTE.plateA:PALETTE.plateB; ctx.fill(); ctx.stroke();
+      ctx.fillStyle='rgba(255,236,205,.22)'; ctx.fillRect(-L*.3,-w*.2,L*.55,w*.1);
+      if(i===3){ctx.beginPath(); ctx.arc(0,0,w*.22,0,Math.PI*2); ctx.fillStyle=a.color; ctx.fill();}
+      ctx.restore();
+    }
+  }
+  // disk on top of the arm bases
+  ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.h);
+  ctx.drawImage(diskTex.img,-diskTex.S/2,-diskTex.S/2,diskTex.S,diskTex.S); ctx.restore();
+
+  if(showLabels){
+    ctx.font=`600 ${Math.round(11+2*s.scale)}px Vazirmatn, Tahoma, sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    for(const a of s.arms){
+      const i=N-1, ex=a.mx[i]+a.tx[i]*s.R*.9, ey=a.my[i]+a.ty[i]*s.R*.9; const [x,y]=W2(ex,ey);
+      ctx.fillStyle='rgba(5,23,30,.65)'; const tw=ctx.measureText(a.name).width+12;
+      ctx.beginPath(); ctx.roundRect?ctx.roundRect(x-tw/2,y-10,tw,20,10):ctx.rect(x-tw/2,y-10,tw,20); ctx.fill();
+      ctx.fillStyle=a.color; ctx.fillText(a.name,x,y+1);
+    }
+  }
+}
+
+const HAND_LINKS=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+function drawHands(){
+  if(!camOn||!lastHands.length||!video.videoWidth) return;
+  const vw=video.videoWidth, vh=video.videoHeight, sc=Math.max(W/vw,H/vh), dw=vw*sc, dh=vh*sc, ox=(W-dw)/2, oy=(H-dh)/2;
+  const P=p=>[W-(ox+p.x*dw), oy+p.y*dh];
+  for(const h of lastHands){
+    ctx.strokeStyle='rgba(230,240,236,.35)'; ctx.lineWidth=1.5; ctx.beginPath();
+    for(const [a,b] of HAND_LINKS){const [x1,y1]=P(h.L[a]),[x2,y2]=P(h.L[b]); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);}
+    ctx.stroke();
+    for(const arm of ARMS){ if(arm.hand!==h.hand) continue;
+      const tip={thumb:4,index:8,middle:12}[arm.finger]; const [x,y]=P(h.L[tip]);
+      ctx.beginPath(); ctx.arc(x,y,9,0,Math.PI*2); ctx.fillStyle=arm.color; ctx.globalAlpha=.85; ctx.fill(); ctx.globalAlpha=1;
+      ctx.lineWidth=2; ctx.strokeStyle='rgba(5,23,30,.8)'; ctx.stroke();
+    }
+  }
+}
+
+/* ===================== HUD ===================== */
+const armsEl=document.getElementById('arms'), rows={};
+for(const a of ARMS){
+  const r=document.createElement('div'); r.className='arm';
+  r.innerHTML=`<span class="dot" style="background:${a.color}"></span><span>${a.name}</span><span class="bar"><i style="background:${a.color}"></i></span><span class="state">—</span>`;
+  armsEl.appendChild(r); rows[a.id]={bar:r.querySelector('i'),st:r.querySelector('.state')};
+}
+const speedEl=document.getElementById('speed'), fpsEl=document.getElementById('fps');
+let hudT=0, frames=0, fpsT=0;
+
+/* ===================== main loop ===================== */
+let prevT=performance.now(), simT=0, demoWas=null;
+function frame(now){
+  const dt=Math.min(.05,(now-prevT)/1000); prevT=now; simT+=dt;
+  detectHands(now);
+  const handsLive = camOn && (now-lastSeen<1500);
+  const demo = !handsLive;
+  if(camOn && demo!==demoWas){
+    setStatus(demo?'دستی دیده نمی‌شود؛ تا دیده شدن دست‌ها، <b>حالت نمایشی</b> فعال است.':'دست‌ها شناسایی شدند. انگشت‌ها را خم و باز کنید تا ستاره پارو بزند.');
+  }
+  demoWas=demo;
+  const targets={};
+  if(demo){Object.assign(targets,demoCurls(simT));}
+  else for(const h of lastHands) for(const a of ARMS) if(a.hand===h.hand) targets[a.id]=h.curl[a.finger];
+  for(const a of star.arms){
+    if(targets[a.id]!==undefined) a.c+=(targets[a.id]-a.c)*(1-Math.exp(-dt*14));
+    const raw=(a.c-a.cPrev)/Math.max(dt,1e-3); a.cPrev=a.c;
+    a.rate+=(raw-a.rate)*(1-Math.exp(-dt*10));
+  }
+  const sub=2; for(let k=0;k<sub;k++) stepStar(star,simT,dt/sub);
+  // wrap around the screen like an open seafloor
+  const m=star.R*7;
+  if(star.x<-m){star.x+=W+2*m;trail=[];} if(star.x>W+m){star.x-=W+2*m;trail=[];}
+  if(star.y<-m){star.y+=H+2*m;trail=[];} if(star.y>H+m){star.y-=H+2*m;trail=[];}
+  trailT+=dt; if(trailT>.09){trailT=0; trail.push([star.x,star.y]); if(trail.length>260) trail.shift();}
+
+  ctx.clearRect(0,0,W,H);
+  for(let i=0;i<trail.length;i++){const a=i/trail.length; ctx.fillStyle=`rgba(230,240,236,${.28*a})`;
+    ctx.beginPath(); ctx.arc(trail[i][0],trail[i][1],1.6,0,Math.PI*2); ctx.fill();}
+  drawHands();
+  drawStar();
+
+  frames++; fpsT+=dt; hudT+=dt;
+  if(hudT>.1){hudT=0;
+    for(const a of star.arms){rows[a.id].bar.style.width=(a.c*100).toFixed(0)+'%';
+      const on=a.contact>.5; rows[a.id].st.textContent=on?'پارو':'بالا'; rows[a.id].st.className='state'+(on?' on':'');}
+    const sp=Math.hypot(star.vx,star.vy)/(2*star.R);
+    speedEl.textContent='سرعت: '+fa(Math.round(sp*100)/100)+' قطر دیسک بر ثانیه';
+  }
+  if(fpsT>1){fpsEl.textContent=(demo?'نمایشی · ':'')+fa(frames)+' فریم/ثانیه'; frames=0; fpsT=0;}
+  requestAnimationFrame(frame);
+}
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
